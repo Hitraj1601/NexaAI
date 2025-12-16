@@ -42,10 +42,46 @@ export const createBlogTitle = asyncHandler(async(req,res)=>{
             if (!response) {
                 throw new ApiError(500, "Failed to generate blog title. Please try again.");
             }
-            console.log(response);
+            console.log('Full response:', JSON.stringify(response, null, 2));
             
-            // Parse JSON from the model response
-            const raw = (typeof response.text === 'function' ? await response.text() : response.text || '').trim();
+            // Parse JSON from the model response - handle new response structure
+            let raw = '';
+            
+            // Try multiple methods to extract text content
+            try {
+                // Method 1: Direct text() method call
+                if (typeof response.text === 'function') {
+                    raw = await response.text();
+                    console.log('Method 1 - response.text():', raw);
+                }
+            } catch (error) {
+                console.log('Method 1 failed:', error.message);
+            }
+            
+            // Method 2: Access candidates structure
+            if (!raw && response.candidates && response.candidates[0]) {
+                console.log('First candidate:', JSON.stringify(response.candidates[0], null, 2));
+                const candidate = response.candidates[0];
+                
+                if (candidate.content && candidate.content.parts && candidate.content.parts[0]) {
+                    console.log('Content parts:', JSON.stringify(candidate.content.parts, null, 2));
+                    raw = candidate.content.parts[0].text?.trim() || '';
+                    console.log('Method 2 - candidates text:', raw);
+                }
+            }
+            
+            // Method 3: Direct text property
+            if (!raw && response.text) {
+                raw = response.text.trim();
+                console.log('Method 3 - direct text:', raw);
+            }
+            
+            console.log('Extracted raw text:', raw);
+            
+            if (!raw) {
+                throw new ApiError(500, "No content received from AI model. Please try again.");
+            }
+            
             let parsed;
             try {
                 parsed = JSON.parse(raw);
@@ -62,8 +98,11 @@ export const createBlogTitle = asyncHandler(async(req,res)=>{
              user: req.user?.id // Assuming you have user authentication
          });
         
+         console.log('Created blogTitle:', blogTitle); // Debug log
+         console.log('Title from database:', blogTitle.title); // Debug log
+         
          return res.status(200).json(
-             new ApiResponse(200, blogTitle, "Blog title generated successfully")
+             new ApiResponse(200, "Blog title generated successfully", blogTitle)
          );
 
 })

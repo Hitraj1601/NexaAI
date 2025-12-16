@@ -1,3 +1,16 @@
 {
-    "postman.settings.dotenv-detection-notification-visibility": false
+    "postman.settings.dotenv-detection-notification-visibility": false,
+    "json.schemas": [
+        {
+            "fileMatch": ["**/package.json"],
+            "url": "https://json.schemastore.org/package.json"
+        },
+        {
+            "fileMatch": ["**/.vscode/settings.json"],
+            "url": "https://json.schemastore.org/vscode-settings.json"
+        }
+    ],
+    "json.validate.enable": true,
+    "json.schemaDownload.enable": true,
+    "json.maxItemsComputed": 5000
 }

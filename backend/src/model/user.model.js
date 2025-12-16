@@ -14,6 +14,39 @@ const UserSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    bio: {
+        type: String,
+        maxLength: 500,
+        default: ''
+    },
+    company: {
+        type: String,
+        maxLength: 100,
+        default: ''
+    },
+    location: {
+        type: String,
+        maxLength: 100,
+        default: ''
+    },
+    website: {
+        type: String,
+        maxLength: 200,
+        default: ''
+    },
+    avatar: {
+        type: String,
+        default: ''
+    },
+    plan: {
+        type: String,
+        enum: ['free', 'pro', 'enterprise'],
+        default: 'free'
+    },
+    lastLoginAt: {
+        type: Date,
+        default: Date.now
+    }
 }, { timestamps: true });
 
 const User = mongoose.model('User', UserSchema);

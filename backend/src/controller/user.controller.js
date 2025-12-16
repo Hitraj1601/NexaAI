@@ -8,7 +8,9 @@ import ApiResponse from '../utils/ApiResponse.js';
 
 // -------------------- Helper function --------------------
 const generateToken = (userId) => {
-    return jwt.sign({ _id: userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+    console.log("🔍 Generating token for user ID:", userId);
+    console.log("🔍 User ID toString:", userId.toString());
+    return jwt.sign({ _id: userId.toString() }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
 };
 
 // -------------------- Register User --------------------
@@ -34,7 +36,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     const token = generateToken(newUser._id);
     res.cookie('accessToken', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
 
-    res.status(201).json(new ApiResponse(201, newUser,"User registered successfully"));
+    res.status(201).json(new ApiResponse(201, "User registered successfully", { user: newUser, token }));
 });
 
 // -------------------- Login User --------------------
@@ -56,10 +58,14 @@ export const loginUser = asyncHandler(async (req, res) => {
 
     const loggedInUser = await userModel.findById(user._id).select('-password');
 
+    console.log("🔍 Login user._id:", user._id);
+    console.log("🔍 Login user._id type:", typeof user._id);
     const token = generateToken(user._id);
     res.cookie('accessToken', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
 
-res.status(200).json(new ApiResponse(200, "User logged in successfully", loggedInUser));
+    // Also return token in response body as a convenience for development and
+    // for clients that prefer Authorization header (frontend will store it in localStorage).
+    res.status(200).json(new ApiResponse(200, "User logged in successfully", { user: loggedInUser, token }));
 });
 
 // -------------------- Logout User --------------------

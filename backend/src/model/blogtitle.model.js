@@ -15,6 +15,9 @@ const blogtitleSchema = new mongoose.Schema(
         ref: 'User',
             required:true
         }
+    },
+    {
+        timestamps:true
     }
 )
 
