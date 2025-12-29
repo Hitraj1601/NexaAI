@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import tokenManager from '@/utils/tokenManager';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -17,7 +18,7 @@ interface ApiResponse<T> {
 
 // Helper function to get auth token
 const getAuthToken = (): string | null => {
-  return localStorage.getItem('token');
+  return tokenManager.getValidToken();
 };
 
 // Helper function to make authenticated API calls
@@ -47,6 +48,14 @@ export const apiCall = async <T>(endpoint: string, options: ApiOptions = {}): Pr
   
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: 'Network error' }));
+    
+    // Handle token expiration
+    if (response.status === 401 && (errorData.message?.includes('expired') || errorData.message?.includes('Invalid token'))) {
+      console.log("🔍 Token expired, redirecting to login");
+      tokenManager.logout();
+      throw new Error('Session expired. Please log in again.');
+    }
+    
     throw new Error(errorData.message || `HTTP ${response.status}`);
   }
 
@@ -109,12 +118,6 @@ export const useUserProfile = () => {
       backgroundRemovals: number;
       total: number;
     };
-    limits: {
-      articles: { used: number; total: number };
-      images: { used: number; total: number };
-      titles: { used: number; total: number };
-      backgroundRemovals: { used: number; total: number };
-    };
   }>('/api/user/profile');
 };
 
@@ -167,14 +170,14 @@ export const updateUserProfile = async (profileData: {
   location?: string;
   website?: string;
 }) => {
-  return apiCall('/user/profile', {
+  return apiCall('/api/user/profile', {
     method: 'PUT',
     body: profileData,
   });
 };
 
 export const deleteHistoryItem = async (type: string, id: string) => {
-  return apiCall(`/user/history/${type}/${id}`, {
+  return apiCall(`/api/user/history/${type}/${id}`, {
     method: 'DELETE',
   });
 };

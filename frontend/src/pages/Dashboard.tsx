@@ -1,3 +1,4 @@
+import React, { useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -16,22 +17,58 @@ import {
   RefreshCw,
   Calendar
 } from 'lucide-react';
-import { useUserProfile, useDashboardAnalytics } from '@/hooks/useApi';
+import { useUserProfile, useDashboardAnalytics } from '@/hooks/useOptimizedApi';
+import { DashboardSkeleton } from '@/components/ui/LoadingSkeletons';
 
 const Dashboard = () => {
-  const { data: profileData, loading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
-  const { data: analyticsData, loading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useDashboardAnalytics();
+  const { data: profileData, loading: profileLoading, error: profileError, isStale: profileStale, refetch: refetchProfile, invalidateCache: invalidateProfileCache } = useUserProfile();
+  const { data: analyticsData, loading: analyticsLoading, error: analyticsError, isStale: analyticsStale, refetch: refetchAnalytics, invalidateCache: invalidateAnalyticsCache } = useDashboardAnalytics();
 
-  if (profileLoading || analyticsLoading) {
-    return (
-      <div className="p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center py-24">
-            <div className="loading-spinner w-8 h-8"></div>
-          </div>
-        </div>
-      </div>
-    );
+  const handleRefresh = useCallback(() => {
+    invalidateProfileCache();
+    invalidateAnalyticsCache();
+    refetchProfile();
+    refetchAnalytics();
+  }, [refetchProfile, refetchAnalytics, invalidateProfileCache, invalidateAnalyticsCache]);
+
+  const usage = profileData?.usage || { articles: 0, images: 0, titles: 0, backgroundRemovals: 0, total: 0 };
+  const recentActivity = profileData?.recentActivity || { articles: 0, images: 0, titles: 0, backgroundRemovals: 0, total: 0 };
+
+  const stats = useMemo(() => [
+    { 
+      label: 'Articles Generated', 
+      value: usage.articles, 
+      icon: PenTool, 
+      change: recentActivity.articles > 0 ? `+${recentActivity.articles} this month` : 'No recent activity',
+      color: 'text-blue-500'
+    },
+    { 
+      label: 'Titles Created', 
+      value: usage.titles, 
+      icon: FileText, 
+      change: recentActivity.titles > 0 ? `+${recentActivity.titles} this month` : 'No recent activity',
+      color: 'text-purple-500'
+    },
+    { 
+      label: 'Images Generated', 
+      value: usage.images, 
+      icon: Image, 
+      change: recentActivity.images > 0 ? `+${recentActivity.images} this month` : 'No recent activity',
+      color: 'text-green-500'
+    },
+    { 
+      label: 'Backgrounds Removed', 
+      value: usage.backgroundRemovals, 
+      icon: Scissors, 
+      change: recentActivity.backgroundRemovals > 0 ? `+${recentActivity.backgroundRemovals} this month` : 'No recent activity',
+      color: 'text-orange-500'
+    },
+  ], [usage.articles, usage.titles, usage.images, usage.backgroundRemovals, recentActivity.articles, recentActivity.titles, recentActivity.images, recentActivity.backgroundRemovals]);
+
+  const dailyActivity = useMemo(() => analyticsData?.dailyActivity || [], [analyticsData]);
+
+  if ((profileLoading && !profileData) || (analyticsLoading && !analyticsData)) {
+    return <DashboardSkeleton />;
   }
 
   if (profileError || analyticsError) {
@@ -40,7 +77,7 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center py-24">
             <p className="text-destructive">Error loading dashboard data: {profileError || analyticsError}</p>
-            <Button onClick={() => { refetchProfile(); refetchAnalytics(); }} className="mt-4">
+            <Button onClick={handleRefresh} className="mt-4">
               <RefreshCw className="w-4 h-4 mr-2" />
               Try Again
             </Button>
@@ -49,56 +86,6 @@ const Dashboard = () => {
       </div>
     );
   }
-
-  const usage = profileData?.usage || { articles: 0, images: 0, titles: 0, backgroundRemovals: 0, total: 0 };
-  const recentActivity = profileData?.recentActivity || { articles: 0, images: 0, titles: 0, backgroundRemovals: 0, total: 0 };
-  const limits = profileData?.limits || { 
-    articles: { used: 0, total: 100 }, 
-    images: { used: 0, total: 50 }, 
-    titles: { used: 0, total: 200 }, 
-    backgroundRemovals: { used: 0, total: 30 } 
-  };
-
-  const stats = [
-    { 
-      label: 'Articles Generated', 
-      value: usage.articles, 
-      icon: PenTool, 
-      change: recentActivity.articles > 0 ? `+${recentActivity.articles} this month` : 'No recent activity',
-      progress: (usage.articles / limits.articles.total) * 100,
-      limit: limits.articles.total,
-      color: 'text-blue-500'
-    },
-    { 
-      label: 'Titles Created', 
-      value: usage.titles, 
-      icon: FileText, 
-      change: recentActivity.titles > 0 ? `+${recentActivity.titles} this month` : 'No recent activity',
-      progress: (usage.titles / limits.titles.total) * 100,
-      limit: limits.titles.total,
-      color: 'text-purple-500'
-    },
-    { 
-      label: 'Images Generated', 
-      value: usage.images, 
-      icon: Image, 
-      change: recentActivity.images > 0 ? `+${recentActivity.images} this month` : 'No recent activity',
-      progress: (usage.images / limits.images.total) * 100,
-      limit: limits.images.total,
-      color: 'text-green-500'
-    },
-    { 
-      label: 'Backgrounds Removed', 
-      value: usage.backgroundRemovals, 
-      icon: Scissors, 
-      change: recentActivity.backgroundRemovals > 0 ? `+${recentActivity.backgroundRemovals} this month` : 'No recent activity',
-      progress: (usage.backgroundRemovals / limits.backgroundRemovals.total) * 100,
-      limit: limits.backgroundRemovals.total,
-      color: 'text-orange-500'
-    },
-  ];
-
-  const dailyActivity = analyticsData?.dailyActivity || [];
 
   return (
     <div className="p-8">
@@ -110,12 +97,24 @@ const Dashboard = () => {
               <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
               <p className="text-muted-foreground">
                 Welcome back, {profileData?.user?.username}! Here's your AI productivity overview.
+                {(profileStale || analyticsStale) && (
+                  <span className="ml-2 text-yellow-600">
+                    ⚠️ Some data may be outdated
+                  </span>
+                )}
               </p>
             </div>
-            <Button onClick={() => { refetchProfile(); refetchAnalytics(); }} variant="outline">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              {(profileStale || analyticsStale) && (
+                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                  Stale Data
+                </Badge>
+              )}
+              <Button onClick={handleRefresh} variant="outline" disabled={profileLoading || analyticsLoading}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${(profileLoading || analyticsLoading) ? 'animate-spin' : ''}`} />
+                {(profileLoading || analyticsLoading) ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -130,21 +129,14 @@ const Dashboard = () => {
                     <div>
                       <p className="text-sm text-muted-foreground">{stat.label}</p>
                       <p className="text-2xl font-bold">{stat.value}</p>
-                      <Badge variant="secondary" className="text-xs mt-1">
-                        {stat.change}
-                      </Badge>
                     </div>
                     <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center">
                       <Icon className="w-6 h-6 text-primary-foreground" />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Usage</span>
-                      <span>{stat.value} / {stat.limit}</span>
-                    </div>
-                    <Progress value={stat.progress} className="h-2" />
-                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    {stat.change}
+                  </Badge>
                 </CardContent>
               </Card>
             );

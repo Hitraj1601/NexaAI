@@ -12,7 +12,6 @@ const Footer = () => {
         { name: 'Title Generator', path: '/title-generator' },
         { name: 'Image Generator', path: '/image-generator' },
         { name: 'Background Remover', path: '/background-remover' },
-        { name: 'Resume Reviewer', path: '/resume-reviewer' },
       ],
     },
     {

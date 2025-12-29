@@ -5,6 +5,7 @@ import asyncHandler from '../utils/asyncHandler.js'
 import { uploadOnCloudinary } from '../utils/cloudinary.js'
 import fs from 'fs'
 import FormData from 'form-data'
+import axios from 'axios'
 
 //replace bg from user image
 
@@ -44,45 +45,36 @@ export const remove_Background = asyncHandler(async (req, res) => {
     }
 
     console.log(`Processing image: ${userImgURL}, Size: ${fileSizeInMB.toFixed(2)}MB, Format: ${fileExtension}`)
+    console.log('File exists check:', fs.existsSync(userImgURL))
+    console.log('File path:', userImgURL)
 
-    // Create FormData with file stream
+    // Create FormData with file buffer instead of stream for better compatibility
+    const fileBuffer = fs.readFileSync(userImgURL)
+    console.log('File buffer created. Size:', fileBuffer.length)
+    console.log('File extension for content type:', fileExtension)
+    
     const form = new FormData()
-    form.append('image_file', fs.createReadStream(userImgURL))
+    form.append('image_file', fileBuffer, {
+        filename: `image${fileExtension}`,
+        contentType: fileExtension === '.jpg' ? 'image/jpeg' : `image/${fileExtension.replace('.', '')}`
+    })
+    
+    console.log('FormData created with file buffer. Buffer size:', fileBuffer.length)
+    console.log('FormData headers:', form.getHeaders())
 
     try {
-        const response = await fetch('https://clipdrop-api.co/remove-background/v1', {
-            method: 'POST',
+        const response = await axios.post('https://clipdrop-api.co/remove-background/v1', form, {
             headers: {
                 'x-api-key': process.env.CLIPDROP_API_KEY,
                 ...form.getHeaders()
             },
-            body: form,
+            responseType: 'arraybuffer'
         })
 
         console.log(`ClipDrop API Response: ${response.status} ${response.statusText}`)
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+        console.log('Response headers:', response.headers)
 
-        if (!response.ok) {
-            const errorText = await response.text()
-            console.error('ClipDrop API Error:', errorText)
-            
-            // Handle specific error codes
-            if (response.status === 400) {
-                throw new ApiError(400, `Bad Request: ${errorText || 'Invalid image file or format'}`)
-            } else if (response.status === 401) {
-                throw new ApiError(500, "Invalid ClipDrop API key")
-            } else if (response.status === 402) {
-                throw new ApiError(500, "Insufficient ClipDrop API credits")
-            } else if (response.status === 403) {
-                throw new ApiError(500, "ClipDrop API key revoked or invalid")
-            } else if (response.status === 429) {
-                throw new ApiError(429, "Too many requests. Please try again later")
-            } else {
-                throw new ApiError(500, `ClipDrop API error: ${response.status} ${response.statusText}`)
-            }
-        }
-
-        const imageBuffer = await response.arrayBuffer();
+        const imageBuffer = response.data;
 
         if (!imageBuffer || imageBuffer.byteLength === 0) {
             throw new ApiError(500, "Image generation failed. No image data found.");
@@ -124,6 +116,27 @@ export const remove_Background = asyncHandler(async (req, res) => {
         
     } catch (error) {
         console.error('Error in remove_Background:', error);
+        
+        // Handle axios errors
+        if (error.response) {
+            // API responded with error status
+            const errorText = error.response.data ? Buffer.from(error.response.data).toString() : 'Unknown error';
+            console.error('ClipDrop API Error:', errorText);
+            
+            if (error.response.status === 400) {
+                throw new ApiError(400, `Bad Request: ${errorText}`);
+            } else if (error.response.status === 401) {
+                throw new ApiError(500, "Invalid ClipDrop API key");
+            } else if (error.response.status === 402) {
+                throw new ApiError(500, "Insufficient ClipDrop API credits");
+            } else if (error.response.status === 403) {
+                throw new ApiError(500, "ClipDrop API key revoked or invalid");
+            } else if (error.response.status === 429) {
+                throw new ApiError(429, "Too many requests. Please try again later");
+            } else {
+                throw new ApiError(500, `ClipDrop API error: ${error.response.status} ${error.response.statusText}`);
+            }
+        }
         
         // Clean up any temporary files that might exist
         const tempFilePath = `./temp_${Date.now()}.png`;
@@ -170,38 +183,30 @@ export const remove_Background_Public = asyncHandler(async (req, res) => {
         throw new ApiError(400, `Invalid file format: ${fileExtension}. Allowed formats: PNG, JPG, JPEG, WEBP`)
     }
 
+    // Create FormData with file buffer instead of stream for better compatibility
+    const fileBuffer = fs.readFileSync(userImgURL)
+    console.log('File buffer created. Size:', fileBuffer.length)
+    console.log('File extension for content type:', fileExtension)
+    
     const form = new FormData()
-    form.append('image_file', fs.createReadStream(userImgURL))
+    form.append('image_file', fileBuffer, {
+        filename: `image${fileExtension}`,
+        contentType: fileExtension === '.jpg' ? 'image/jpeg' : `image/${fileExtension.replace('.', '')}`
+    })
+    
+    console.log('FormData created with file buffer. Buffer size:', fileBuffer.length)
+    console.log('FormData headers:', form.getHeaders())
 
     try {
-        const response = await fetch('https://clipdrop-api.co/remove-background/v1', {
-            method: 'POST',
+        const response = await axios.post('https://clipdrop-api.co/remove-background/v1', form, {
             headers: {
                 'x-api-key': process.env.CLIPDROP_API_KEY,
                 ...form.getHeaders()
             },
-            body: form,
+            responseType: 'arraybuffer'
         })
 
-        if (!response.ok) {
-            const errorText = await response.text()
-            console.error('ClipDrop API Error:', errorText)
-            if (response.status === 400) {
-                throw new ApiError(400, `Bad Request: ${errorText || 'Invalid image file or format'}`)
-            } else if (response.status === 401) {
-                throw new ApiError(500, "Invalid ClipDrop API key")
-            } else if (response.status === 402) {
-                throw new ApiError(500, "Insufficient ClipDrop API credits")
-            } else if (response.status === 403) {
-                throw new ApiError(500, "ClipDrop API key revoked or invalid")
-            } else if (response.status === 429) {
-                throw new ApiError(429, "Too many requests. Please try again later")
-            } else {
-                throw new ApiError(500, `ClipDrop API error: ${response.status} ${response.statusText}`)
-            }
-        }
-
-        const imageBuffer = await response.arrayBuffer();
+        const imageBuffer = response.data;
         if (!imageBuffer || imageBuffer.byteLength === 0) {
             throw new ApiError(500, "Image generation failed. No image data found.");
         }
@@ -235,6 +240,28 @@ export const remove_Background_Public = asyncHandler(async (req, res) => {
 
     } catch (error) {
         console.error('Error in remove_Background_Public:', error);
+        
+        // Handle axios errors
+        if (error.response) {
+            // API responded with error status
+            const errorText = error.response.data ? Buffer.from(error.response.data).toString() : 'Unknown error';
+            console.error('ClipDrop API Error:', errorText);
+            
+            if (error.response.status === 400) {
+                throw new ApiError(400, `Bad Request: ${errorText}`);
+            } else if (error.response.status === 401) {
+                throw new ApiError(500, "Invalid ClipDrop API key");
+            } else if (error.response.status === 402) {
+                throw new ApiError(500, "Insufficient ClipDrop API credits");
+            } else if (error.response.status === 403) {
+                throw new ApiError(500, "ClipDrop API key revoked or invalid");
+            } else if (error.response.status === 429) {
+                throw new ApiError(429, "Too many requests. Please try again later");
+            } else {
+                throw new ApiError(500, `ClipDrop API error: ${error.response.status} ${error.response.statusText}`);
+            }
+        }
+        
         const tempFilePath = `./temp_${Date.now()}.png`;
         if (fs.existsSync(tempFilePath)) {
             fs.unlinkSync(tempFilePath);

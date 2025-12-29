@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Scissors, Upload, Download, RefreshCw, Eye, ImageIcon } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Scissors, Upload, Download, RefreshCw, Eye, ImageIcon, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BackgroundRemover = () => {
@@ -9,7 +10,14 @@ const BackgroundRemover = () => {
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState<string>('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Check if user is authenticated
+    const token = localStorage.getItem('accessToken');
+    setIsAuthenticated(!!token);
+  }, []);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -51,14 +59,17 @@ const BackgroundRemover = () => {
       const formData = new FormData();
       formData.append('userImgURL', file);
 
-      // Call backend public endpoint (no auth required). Adjust the base URL if your backend runs on a different port.
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      // include credentials so httpOnly cookie (accessToken) is sent if user is logged in
+      // Determine if user is authenticated and use appropriate endpoint
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const token = localStorage.getItem('accessToken');
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch(`${apiUrl}/api/background/removeBG-public`, {
+      // Use authenticated endpoint if user is logged in, otherwise use public endpoint
+      const endpoint = token ? 'removeBG' : 'removeBG-public';
+      console.log(`🔍 Using endpoint: ${endpoint}, authenticated: ${!!token}`);
+
+      const response = await fetch(`${apiUrl}/api/background/${endpoint}`, {
         method: 'POST',
         credentials: 'include',
         headers: headers,
@@ -78,7 +89,11 @@ const BackgroundRemover = () => {
       const imageUrl = json?.data?.resImgURL || json?.data?.resImgURL;
       if (imageUrl) {
         setProcessedImage(imageUrl);
-        toast.success('Background removed successfully!');
+        if (isAuthenticated) {
+          toast.success('Background removed successfully! Work saved to your history.');
+        } else {
+          toast.success('Background removed successfully! Sign in to save your work.');
+        }
       } else {
         toast.error('Unexpected response from server');
       }
@@ -141,6 +156,16 @@ const BackgroundRemover = () => {
             Perfect for product photos, portraits, and professional imagery.
           </p>
         </div>
+
+        {/* Authentication Status Alert */}
+        {!isAuthenticated && (
+          <Alert className="mb-8">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              You're using the background remover as a guest. <a href="/signin" className="underline font-medium hover:text-primary">Sign in</a> to save your work to your history and dashboard.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Upload Section */}
         {!originalImage && (

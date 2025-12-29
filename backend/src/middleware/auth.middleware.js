@@ -35,6 +35,15 @@ export const authenticated = asyncHandler(async (req, res, next) => {
         next();
     } catch (error) {
         console.log("🔍 Auth error:", error.message);
+        
+        // Handle specific JWT errors
+        if (error.name === 'TokenExpiredError') {
+            throw new ApiError(401, 'Token expired. Please log in again.');
+        }
+        if (error.name === 'JsonWebTokenError') {
+            throw new ApiError(401, 'Invalid token. Please log in again.');
+        }
+        
         throw new ApiError(401, error?.message || "Invalid access token");
     }
 });

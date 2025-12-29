@@ -158,19 +158,19 @@ const LandingPage = () => {
           <img
             src={heroImage}
             alt="AI Hero Background"
-            className="w-[100vw] h-[100vh] object-cover fixed top-0 left-0 opacity-30 dark:opacity-20"
+            className="w-[100vw] h-[100vh] object-cover fixed top-0 left-0 opacity-20 dark:opacity-20"
           />
-          <div className="absolute inset-0 bg-gradient-to-br from-background/70 via-background/50 to-primary/10" />
+          <div className="absolute inset-0 bg-gradient-to-br from-background/85 via-background/75 to-primary/5 dark:from-background/70 dark:via-background/50 dark:to-primary/10" />
         </div>
 
         {/* Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="max-w-4xl mx-auto">
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-primary-light to-accent bg-clip-text text-transparent">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-foreground via-primary to-primary-dark bg-clip-text text-transparent dark:from-white dark:via-primary-light dark:to-accent">
               Transform Your Workflow with
               <span className="block">AI-Powered Tools</span>
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+            <p className="text-xl md:text-2xl text-foreground/80 dark:text-muted-foreground mb-8 max-w-3xl mx-auto font-medium">
               Create articles, generate images, remove backgrounds, and boost productivity
               with our comprehensive suite of AI tools designed for modern professionals.
             </p>
@@ -181,12 +181,12 @@ const LandingPage = () => {
                 </Button>
               </Link>
               <Link to="/dashboard">
-                <Button variant="outline" size="lg" className="text-lg px-8 py-6 border-primary/30 hover:bg-primary/10">
+                <Button variant="outline" size="lg" className="text-lg px-8 py-6 border-primary/40 hover:bg-primary/10 bg-background/80 dark:border-primary/30 dark:hover:bg-primary/10">
                   Try Demo
                 </Button>
               </Link>
             </div>
-            <p className="text-muted-foreground">
+            <p className="text-foreground/70 dark:text-muted-foreground font-medium">
               No credit card required • Free tier available • 14-day money-back guarantee
             </p>
           </div>

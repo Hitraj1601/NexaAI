@@ -115,8 +115,8 @@ const ArticleWriter = () => {
   };
 
   return (
-    <div className="p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="p-4 md:p-8">
+      <div className={`mx-auto ${generatedContent ? 'max-w-full px-4' : 'max-w-7xl'}`}>
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center mb-4">
@@ -131,7 +131,7 @@ const ArticleWriter = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className={`${generatedContent ? 'space-y-8' : 'grid grid-cols-1 lg:grid-cols-2 gap-8'}`}>
           {/* Input Section */}
           <Card className="glass border-border/20">
             <CardHeader>
@@ -219,7 +219,7 @@ const ArticleWriter = () => {
           </Card>
 
           {/* Output Section */}
-          <Card className="glass border-border/20">
+          <Card className={`glass border-border/20 ${generatedContent ? 'w-full' : ''}`}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -243,12 +243,12 @@ const ArticleWriter = () => {
                 )}
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className={generatedContent ? 'p-0' : ''}>
               {generatedContent ? (
                 <div className="w-full">
                   {/* Generated Title */}
                   {generatedTitle && (
-                    <div className="mb-4 p-3 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-primary/20">
+                    <div className="mb-4 mx-6 mt-6 p-3 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-primary/20">
                       <h2 className="text-lg font-bold text-foreground leading-tight">
                         {generatedTitle}
                       </h2>
@@ -256,42 +256,47 @@ const ArticleWriter = () => {
                   )}
                   
                   {/* Generated Content with Modern Typography */}
-                  <div className="prose prose-sm prose-invert max-w-none">
-                    <div 
-                      className="leading-relaxed text-foreground space-y-3"
-                      style={{
-                        fontSize: '14px',
-                        lineHeight: '1.6',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-                      }}
-                      dangerouslySetInnerHTML={{
-                        __html: generatedContent
-                          .split('\n\n')
-                          .map(paragraph => {
-                            // Convert markdown headers
-                            if (paragraph.startsWith('# ')) {
-                              return `<h1 class="text-lg font-bold mb-2 mt-4 text-foreground">${paragraph.slice(2)}</h1>`;
-                            }
-                            if (paragraph.startsWith('## ')) {
-                              return `<h2 class="text-base font-semibold mb-2 mt-4 text-foreground">${paragraph.slice(3)}</h2>`;
-                            }
-                            if (paragraph.startsWith('### ')) {
-                              return `<h3 class="text-sm font-semibold mb-1 mt-3 text-foreground">${paragraph.slice(4)}</h3>`;
-                            }
-                            // Convert bold text
-                            const boldConverted = paragraph.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
-                            // Convert italic text
-                            const italicConverted = boldConverted.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-                            // Regular paragraphs
-                            return paragraph.trim() ? `<p class="mb-3 text-muted-foreground leading-relaxed">${italicConverted}</p>` : '';
-                          })
-                          .join('')
-                      }}
-                    />
+                  <div className="max-h-[70vh] overflow-y-auto scrollbar-thin px-6 pb-6">
+                    <div className="prose prose-sm prose-invert max-w-none">
+                      <div 
+                        className="leading-relaxed text-foreground space-y-3 break-words"
+                        style={{
+                          fontSize: '15px',
+                          lineHeight: '1.7',
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                          wordWrap: 'break-word',
+                          overflowWrap: 'break-word',
+                          hyphens: 'auto'
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: generatedContent
+                            .split('\n\n')
+                            .map(paragraph => {
+                              // Convert markdown headers
+                              if (paragraph.startsWith('# ')) {
+                                return `<h1 class="text-xl font-bold mb-3 mt-5 text-foreground break-words">${paragraph.slice(2)}</h1>`;
+                              }
+                              if (paragraph.startsWith('## ')) {
+                                return `<h2 class="text-lg font-semibold mb-3 mt-4 text-foreground break-words">${paragraph.slice(3)}</h2>`;
+                              }
+                              if (paragraph.startsWith('### ')) {
+                                return `<h3 class="text-base font-semibold mb-2 mt-3 text-foreground break-words">${paragraph.slice(4)}</h3>`;
+                              }
+                              // Convert bold text
+                              const boldConverted = paragraph.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
+                              // Convert italic text
+                              const italicConverted = boldConverted.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+                              // Regular paragraphs
+                              return paragraph.trim() ? `<p class="mb-4 text-muted-foreground leading-relaxed break-words" style="word-wrap: break-word; overflow-wrap: break-word;">${italicConverted}</p>` : '';
+                            })
+                            .join('')
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex flex-col items-center justify-center py-12 text-center px-6">
                   <div className="w-24 h-24 rounded-full border-2 border-dashed border-border flex items-center justify-center mb-4">
                     <PenTool className="w-12 h-12 text-muted-foreground" />
                   </div>

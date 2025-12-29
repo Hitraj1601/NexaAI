@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Zap, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
 
 const SignUp = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -23,10 +26,54 @@ const SignUp = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle sign up logic here
-    console.log('Sign up:', formData);
+    
+    // Validation
+    if (formData.password !== formData.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    
+    if (formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const res = await fetch(`${apiUrl}/api/auth/register`, {
+        method: 'POST',
+        credentials: 'include', // important: send/receive cookie
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formData.name,
+          email: formData.email,
+          password: formData.password
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = json?.message || `Registration failed (${res.status})`;
+        console.error('Registration failed', res.status, json);
+        toast.error(msg);
+        return;
+      }
+
+      // Registration successful
+      console.log('Registration response data:', json?.data);
+      
+      toast.success('Account created successfully! Please sign in to continue.');
+      navigate('/signin');
+    } catch (err) {
+      console.error('Registration error', err);
+      toast.error('Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -150,10 +197,11 @@ const SignUp = () => {
               {/* Submit Button */}
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full gradient-primary hover-glow text-white font-medium py-3"
                 size="lg"
               >
-                Create Account
+                {isLoading ? 'Creating Account...' : 'Create Account'}
               </Button>
             </form>
 

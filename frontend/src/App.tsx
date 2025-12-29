@@ -4,22 +4,26 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+import { Suspense, lazy } from "react";
 import Layout from "./components/Layout/Layout";
 import DashboardLayout from "./components/Layout/DashboardLayout";
-import LandingPage from "./pages/LandingPage";
-import ArticleWriter from "./pages/ArticleWriter";
-import TitleGenerator from "./pages/TitleGenerator";
-import ImageGenerator from "./pages/ImageGenerator";
-import BackgroundRemover from "./pages/BackgroundRemover";
-import ResumeReviewer from "./pages/ResumeReviewer";
-import Community from "./pages/Community";
-import Dashboard from "./pages/Dashboard";
-import History from "./pages/History";
-import Profile from "./pages/Profile";
-import Settings from "./pages/Settings";
-import SignUp from "./pages/SignUp";
-import SignIn from "./pages/SignIn";
-import NotFound from "./pages/NotFound";
+import PageLoader from "./components/ui/page-loader";
+
+// Lazy load pages for better code splitting
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const ArticleWriter = lazy(() => import("./pages/ArticleWriter"));
+const TitleGenerator = lazy(() => import("./pages/TitleGenerator"));
+const ImageGenerator = lazy(() => import("./pages/ImageGenerator"));
+const BackgroundRemover = lazy(() => import("./pages/BackgroundRemover"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const History = lazy(() => import("./pages/History"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Settings = lazy(() => import("./pages/Settings"));
+const SignUp = lazy(() => import("./pages/SignUp"));
+const SignIn = lazy(() => import("./pages/SignIn"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
@@ -35,26 +39,28 @@ const App = () => (
             v7_relativeSplatPath: true,
           }}
         >
-          <Routes>
-            {/* Public routes with main layout */}
-            <Route path="/" element={<Layout><LandingPage /></Layout>} />
-            <Route path="/community" element={<Layout><Community /></Layout>} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/signin" element={<SignIn />} />
-            
-            {/* Dashboard/authenticated routes with sidebar layout */}
-            <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
-            <Route path="/dashboard/history" element={<DashboardLayout><History /></DashboardLayout>} />
-            <Route path="/dashboard/profile" element={<DashboardLayout><Profile /></DashboardLayout>} />
-            <Route path="/dashboard/settings" element={<DashboardLayout><Settings /></DashboardLayout>} />
-            <Route path="/article-writer" element={<DashboardLayout><ArticleWriter /></DashboardLayout>} />
-            <Route path="/title-generator" element={<DashboardLayout><TitleGenerator /></DashboardLayout>} />
-            <Route path="/image-generator" element={<DashboardLayout><ImageGenerator /></DashboardLayout>} />
-            <Route path="/background-remover" element={<DashboardLayout><BackgroundRemover /></DashboardLayout>} />
-            <Route path="/resume-reviewer" element={<DashboardLayout><ResumeReviewer /></DashboardLayout>} />
-            
-            <Route path="*" element={<Layout><NotFound /></Layout>} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {/* Public routes with main layout */}
+              <Route path="/" element={<Layout><LandingPage /></Layout>} />
+              <Route path="/signup" element={<SignUp />} />
+              <Route path="/signin" element={<SignIn />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              
+              {/* Dashboard/authenticated routes with sidebar layout */}
+              <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
+              <Route path="/dashboard/history" element={<DashboardLayout><History /></DashboardLayout>} />
+              <Route path="/dashboard/profile" element={<DashboardLayout><Profile /></DashboardLayout>} />
+              <Route path="/dashboard/settings" element={<DashboardLayout><Settings /></DashboardLayout>} />
+              <Route path="/article-writer" element={<DashboardLayout><ArticleWriter /></DashboardLayout>} />
+              <Route path="/title-generator" element={<DashboardLayout><TitleGenerator /></DashboardLayout>} />
+              <Route path="/image-generator" element={<DashboardLayout><ImageGenerator /></DashboardLayout>} />
+              <Route path="/background-remover" element={<DashboardLayout><BackgroundRemover /></DashboardLayout>} />
+              
+              <Route path="*" element={<Layout><NotFound /></Layout>} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>

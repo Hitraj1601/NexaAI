@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import React, { useState, useMemo, useCallback, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   History as HistoryIcon, 
   FileText, 
@@ -19,7 +21,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useUserHistory, deleteHistoryItem } from '@/hooks/useApi';
+import { useUserHistory, deleteHistoryItem } from '@/hooks/useOptimizedApi';
+import { HistorySkeleton } from '@/components/ui/LoadingSkeletons';
 
 interface HistoryItemProps {
   item: {
@@ -37,10 +40,12 @@ interface HistoryItemProps {
   onDelete: (id: string, type: string) => void;
 }
 
-const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
+const HistoryItem = React.memo(({ item, onDelete }: HistoryItemProps) => {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showFullArticle, setShowFullArticle] = useState(false);
 
-  const getIcon = () => {
+  const getIcon = useMemo(() => {
     switch (item.type) {
       case 'article': return <FileText className="w-5 h-5 text-blue-500" />;
       case 'image': return <Image className="w-5 h-5 text-green-500" />;
@@ -48,9 +53,9 @@ const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
       case 'bg-removal': return <Scissors className="w-5 h-5 text-orange-500" />;
       default: return <FileText className="w-5 h-5" />;
     }
-  };
+  }, [item.type]);
 
-  const getTypeLabel = () => {
+  const getTypeLabel = useMemo(() => {
     switch (item.type) {
       case 'article': return 'Article';
       case 'image': return 'Image';
@@ -58,9 +63,9 @@ const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
       case 'bg-removal': return 'Background Removal';
       default: return 'Unknown';
     }
-  };
+  }, [item.type]);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
@@ -72,23 +77,25 @@ const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
     } else {
       return date.toLocaleDateString();
     }
-  };
+  }, []);
 
-  const handleCopy = () => {
+  const handleCopy = useCallback(() => {
     const textToCopy = item.type === 'image' ? item.prompt || '' : item.content;
     navigator.clipboard.writeText(textToCopy);
     toast.success('Copied to clipboard');
-  };
+  }, [item.type, item.prompt, item.content]);
 
-  const handleView = () => {
+  const handleView = useCallback(() => {
     if (item.type === 'image' || item.type === 'bg-removal') {
       window.open(item.content, '_blank');
+    } else if (item.type === 'article') {
+      setShowFullArticle(true);
     } else {
       toast.info('Viewing functionality coming soon');
     }
-  };
+  }, [item.type, item.content]);
 
-  const handleDownload = () => {
+  const handleDownload = useCallback(() => {
     if (item.type === 'image' || item.type === 'bg-removal') {
       const link = document.createElement('a');
       link.href = item.content;
@@ -104,9 +111,9 @@ const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
       URL.revokeObjectURL(url);
     }
     toast.success('Download started');
-  };
+  }, [item.type, item.content, item.id]);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     try {
       setIsDeleting(true);
       await deleteHistoryItem(item.type, item.id);
@@ -118,7 +125,7 @@ const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [item.type, item.id, onDelete]);
 
   return (
     <Card className="glass border-border/20 hover:shadow-lg transition-all duration-200">
@@ -126,13 +133,13 @@ const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 gradient-primary rounded-lg flex items-center justify-center">
-              {getIcon()}
+              {getIcon}
             </div>
             <div>
               <h3 className="font-semibold text-sm">{item.title}</h3>
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant="secondary" className="text-xs">
-                  {getTypeLabel()}
+                  {getTypeLabel}
                 </Badge>
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="w-3 h-3" />
@@ -162,7 +169,45 @@ const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
           ) : (
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1">Content:</p>
-              <p className="text-sm line-clamp-3 text-muted-foreground">{item.content}</p>
+              <div className="relative">
+                <div className={`text-sm text-muted-foreground break-words overflow-hidden ${isExpanded ? 'max-h-48 overflow-y-auto scrollbar-thin' : 'line-clamp-3'}`}>
+                  {item.type === 'article' ? (
+                    <div 
+                      className="prose prose-sm prose-invert max-w-none leading-relaxed"
+                      dangerouslySetInnerHTML={{
+                        __html: (isExpanded ? item.content : item.content.substring(0, 200) + (item.content.length > 200 ? '...' : ''))
+                          .split('\n\n')
+                          .map(paragraph => {
+                            // Convert basic markdown
+                            if (paragraph.startsWith('# ')) {
+                              return `<h6 class="font-semibold text-foreground text-xs mb-1">${paragraph.slice(2)}</h6>`;
+                            }
+                            if (paragraph.startsWith('## ')) {
+                              return `<h6 class="font-medium text-foreground text-xs mb-1">${paragraph.slice(3)}</h6>`;
+                            }
+                            const boldConverted = paragraph.replace(/\*\*(.*?)\*\*/g, '<strong class="font-medium">$1</strong>');
+                            const italicConverted = boldConverted.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+                            return paragraph.trim() ? `<span class="text-muted-foreground">${italicConverted}</span>` : '';
+                          })
+                          .filter(p => p)
+                          .join(' ')
+                      }}
+                    />
+                  ) : (
+                    <span className="whitespace-pre-wrap">{item.content}</span>
+                  )}
+                </div>
+                {item.content && item.content.length > 150 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="mt-2 h-6 px-2 text-xs hover:bg-primary/10"
+                  >
+                    {isExpanded ? 'Show less' : 'Show more'}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -195,48 +240,146 @@ const HistoryItem = ({ item, onDelete }: HistoryItemProps) => {
           </div>
         </div>
       </CardContent>
+      
+      {/* Article Viewer Modal */}
+      {item.type === 'article' && (
+        <Dialog open={showFullArticle} onOpenChange={setShowFullArticle}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>{item.title}</DialogTitle>
+              <DialogDescription>
+                Created {formatDate(item.createdAt)} • {item.user.username}
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] pr-4">
+              <div className="prose prose-sm prose-invert max-w-none">
+                <div 
+                  className="leading-relaxed text-foreground space-y-3"
+                  style={{
+                    fontSize: '14px',
+                    lineHeight: '1.6',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+                  }}
+                  dangerouslySetInnerHTML={{
+                    __html: item.content
+                      .split('\n\n')
+                      .map(paragraph => {
+                        // Convert markdown headers
+                        if (paragraph.startsWith('# ')) {
+                          return `<h1 class="text-lg font-bold mb-2 mt-4 text-foreground">${paragraph.slice(2)}</h1>`;
+                        }
+                        if (paragraph.startsWith('## ')) {
+                          return `<h2 class="text-base font-semibold mb-2 mt-4 text-foreground">${paragraph.slice(3)}</h2>`;
+                        }
+                        if (paragraph.startsWith('### ')) {
+                          return `<h3 class="text-sm font-semibold mb-1 mt-3 text-foreground">${paragraph.slice(4)}</h3>`;
+                        }
+                        // Convert bold text
+                        const boldConverted = paragraph.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
+                        // Convert italic text
+                        const italicConverted = boldConverted.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+                        // Regular paragraphs
+                        return paragraph.trim() ? `<p class="mb-3 text-muted-foreground leading-relaxed">${italicConverted}</p>` : '';
+                      })
+                      .join('')
+                  }}
+                />
+              </div>
+            </ScrollArea>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => navigator.clipboard.writeText(item.content)}>
+                <Copy className="w-4 h-4 mr-2" />
+                Copy
+              </Button>
+              <Button variant="outline" onClick={() => {
+                const blob = new Blob([item.content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `article-${item.id}.txt`;
+                link.click();
+                URL.revokeObjectURL(url);
+              }}>
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   );
-};
+});
 
 const History = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const { data: historyData, loading, error, refetch } = useUserHistory(activeTab, currentPage, 12);
+  
+  // Memoize the query parameters to prevent unnecessary re-renders
+  const queryParams = useMemo(() => ({
+    type: activeTab,
+    page: currentPage,
+    limit: 12
+  }), [activeTab, currentPage]);
+  
+  const cacheKey = `${queryParams.type}-${queryParams.page}-${queryParams.limit}`;
+  
+  const { data: historyData, loading, error, isStale, refetch, invalidateCache } = useUserHistory(queryParams.type, queryParams.page, queryParams.limit);
 
-  console.log("🔍 Frontend History - Data:", historyData);
-  console.log("🔍 Frontend History - Loading:", loading);
-  console.log("🔍 Frontend History - Error:", error);
+  // Handle cache invalidation on delete
+  const handleDeleteWithCacheUpdate = useCallback(async (id: string, type: string) => {
+    try {
+      await deleteHistoryItem(type, id);
+      invalidateCache();
+      refetch();
+      toast.success('Item deleted successfully');
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast.error('Failed to delete item');
+    }
+  }, [invalidateCache, refetch]);
 
-  const handleTabChange = (value: string) => {
+  // Use useCallback to prevent unnecessary re-renders of child components
+  const handleTabChange = useCallback((value: string) => {
     setActiveTab(value);
     setCurrentPage(1);
-  };
+  }, []);
 
-  const handleDeleteItem = (id: string, type: string) => {
-    // Refetch data after deletion
-    refetch();
-  };
-
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     if (historyData?.pagination.hasNextPage) {
       setCurrentPage(prev => prev + 1);
     }
-  };
+  }, [historyData?.pagination.hasNextPage]);
 
-  if (loading && currentPage === 1) {
-    return (
-      <div className="p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-center py-24">
-            <div className="loading-spinner w-8 h-8"></div>
-          </div>
-        </div>
-      </div>
-    );
+  // Memoize filtered history data
+  const filteredHistoryData = useMemo(() => {
+    if (!historyData?.history) return null;
+    
+    return {
+      ...historyData,
+      history: activeTab === 'all' 
+        ? historyData.history 
+        : historyData.history.filter(item => item.type === activeTab)
+    };
+  }, [historyData, activeTab]);
+
+  // Memoize statistics calculation
+  const statistics = useMemo(() => {
+    if (!historyData?.history) return null;
+    
+    return {
+      articles: historyData.history.filter(item => item.type === 'article').length,
+      images: historyData.history.filter(item => item.type === 'image').length,
+      titles: historyData.history.filter(item => item.type === 'title').length,
+      bgRemovals: historyData.history.filter(item => item.type === 'bg-removal').length
+    };
+  }, [historyData]);
+
+  if (loading && !historyData) {
+    return <HistorySkeleton />;
   }
 
-  if (error) {
+  if (error && !historyData) {
     return (
       <div className="p-8">
         <div className="max-w-6xl mx-auto">
@@ -253,15 +396,7 @@ const History = () => {
   }
 
   if (!historyData || !historyData.history) {
-    return (
-      <div className="p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-center py-24">
-            <div className="loading-spinner w-8 h-8"></div>
-          </div>
-        </div>
-      </div>
-    );
+    return <HistorySkeleton />;
   }
 
   return (
@@ -286,7 +421,7 @@ const History = () => {
         </div>
 
         {/* Statistics Cards */}
-        {historyData && (
+        {statistics && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="glass border-border/20">
               <CardContent className="p-4">
@@ -296,9 +431,7 @@ const History = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Articles</p>
-                    <p className="text-xl font-bold">
-                      {historyData.history.filter(item => item.type === 'article').length}
-                    </p>
+                    <p className="text-xl font-bold">{statistics.articles}</p>
                   </div>
                 </div>
               </CardContent>
@@ -312,9 +445,7 @@ const History = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Images</p>
-                    <p className="text-xl font-bold">
-                      {historyData.history.filter(item => item.type === 'image').length}
-                    </p>
+                    <p className="text-xl font-bold">{statistics.images}</p>
                   </div>
                 </div>
               </CardContent>
@@ -328,9 +459,7 @@ const History = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Titles</p>
-                    <p className="text-xl font-bold">
-                      {historyData.history.filter(item => item.type === 'title').length}
-                    </p>
+                    <p className="text-xl font-bold">{statistics.titles}</p>
                   </div>
                 </div>
               </CardContent>
@@ -344,9 +473,7 @@ const History = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">BG Removals</p>
-                    <p className="text-xl font-bold">
-                      {historyData.history.filter(item => item.type === 'bg-removal').length}
-                    </p>
+                    <p className="text-xl font-bold">{statistics.bgRemovals}</p>
                   </div>
                 </div>
               </CardContent>
@@ -364,8 +491,15 @@ const History = () => {
             <TabsTrigger value="bg-removal">BG Removal</TabsTrigger>
           </TabsList>
 
-          <TabsContent value={activeTab} className="mt-8">
-            {!historyData?.history.length ? (
+            <TabsContent value={activeTab} className="mt-8">
+              {/* Show stale data indicator if data is stale */}
+              {isStale && (
+                <div className="mb-4 p-2 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg text-sm text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Data may be outdated. <Button variant="link" size="sm" onClick={refetch} className="p-0 h-auto">Refresh</Button>
+                </div>
+              )}
+
+              {!historyData?.history.length ? (
               <Card className="glass border-border/20">
                 <CardContent className="p-12 text-center">
                   <HistoryIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -378,14 +512,13 @@ const History = () => {
                   </p>
                 </CardContent>
               </Card>
-            ) : (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {historyData.history.map((item) => (
                     <HistoryItem 
                       key={item.id} 
                       item={item} 
-                      onDelete={handleDeleteItem}
+                      onDelete={handleDeleteWithCacheUpdate}
                     />
                   ))}
                 </div>

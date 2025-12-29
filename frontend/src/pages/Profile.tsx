@@ -138,7 +138,7 @@ const Profile = () => {
     );
   }
 
-  const { user, usage, recentActivity, limits } = profileData;
+  const { user, usage, recentActivity } = profileData;
 
   return (
     <div className="p-8">
@@ -328,10 +328,6 @@ const Profile = () => {
                     </div>
                     <span className="text-sm font-medium">{usage.articles}</span>
                   </div>
-                  <Progress value={(usage.articles / limits.articles.total) * 100} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {usage.articles} of {limits.articles.total} used
-                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -342,10 +338,6 @@ const Profile = () => {
                     </div>
                     <span className="text-sm font-medium">{usage.images}</span>
                   </div>
-                  <Progress value={(usage.images / limits.images.total) * 100} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {usage.images} of {limits.images.total} used
-                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -356,10 +348,6 @@ const Profile = () => {
                     </div>
                     <span className="text-sm font-medium">{usage.titles}</span>
                   </div>
-                  <Progress value={(usage.titles / limits.titles.total) * 100} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {usage.titles} of {limits.titles.total} used
-                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -370,10 +358,6 @@ const Profile = () => {
                     </div>
                     <span className="text-sm font-medium">{usage.backgroundRemovals}</span>
                   </div>
-                  <Progress value={(usage.backgroundRemovals / limits.backgroundRemovals.total) * 100} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {usage.backgroundRemovals} of {limits.backgroundRemovals.total} used
-                  </p>
                 </div>
               </CardContent>
             </Card>

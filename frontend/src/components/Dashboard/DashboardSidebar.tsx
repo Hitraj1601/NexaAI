@@ -1,26 +1,46 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   LayoutDashboard, 
   PenTool, 
   FileText, 
   Image, 
   Scissors, 
-  FileCheck,
   History,
   Settings,
   User,
   LogOut,
-  Zap
+  Zap,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { useUserProfile } from '@/hooks/useApi';
 
-const DashboardSidebar = () => {
+interface DashboardSidebarProps {
+  isCollapsed?: boolean;
+  onToggle?: () => void;
+}
+
+const DashboardSidebar = React.memo(({ isCollapsed = false, onToggle }: DashboardSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { data: profileData, loading: profileLoading } = useUserProfile();
 
-  const handleLogout = async () => {
+  const getInitials = useCallback((name: string) => {
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  }, []);
+
+  const handleLogout = useCallback(async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       
@@ -42,8 +62,9 @@ const DashboardSidebar = () => {
       toast.success('Logged out');
       navigate('/');
     }
-  };
-  const menuItems = [
+  }, [navigate]);
+
+  const menuItems = useMemo(() => [
     {
       section: 'Overview',
       items: [
@@ -58,7 +79,6 @@ const DashboardSidebar = () => {
         { name: 'Title Generator', path: '/title-generator', icon: FileText },
         { name: 'Image Generator', path: '/image-generator', icon: Image },
         { name: 'Background Remover', path: '/background-remover', icon: Scissors },
-        { name: 'Resume Reviewer', path: '/resume-reviewer', icon: FileCheck },
       ]
     },
     {
@@ -68,21 +88,31 @@ const DashboardSidebar = () => {
         { name: 'Settings', path: '/dashboard/settings', icon: Settings },
       ]
     }
-  ];
+  ], []);
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 
   return (
-    <div className="w-64 h-screen bg-card/50 border-r border-border/20 flex flex-col">
+    <div className={`${isCollapsed ? 'w-16' : 'w-64'} h-screen bg-card/50 border-r border-border/20 flex flex-col transition-all duration-300 ease-in-out relative`}>
+      {/* Toggle Button */}
+      <button
+        onClick={onToggle}
+        className="absolute -right-3 top-6 z-10 w-6 h-6 bg-background border border-border rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200"
+      >
+        {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+      </button>
+      
       {/* Logo */}
       <div className="p-6 border-b border-border/20">
         <Link to="/" className="flex items-center space-x-2">
-          <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center flex-shrink-0">
             <Zap className="w-5 h-5 text-primary-foreground" />
           </div>
-          <span className="text-lg font-bold bg-gradient-to-r from-primary via-primary-light to-accent bg-clip-text text-transparent">
-            NexaAI
-          </span>
+          {!isCollapsed && (
+            <span className="text-lg font-bold bg-gradient-to-r from-primary via-primary-light to-accent bg-clip-text text-transparent transition-all duration-300">
+              NexaAI
+            </span>
+          )}
         </Link>
       </div>
 
@@ -91,9 +121,11 @@ const DashboardSidebar = () => {
         <nav className="px-4 space-y-8">
           {menuItems.map((section) => (
             <div key={section.section}>
-              <h3 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                {section.section}
-              </h3>
+              {!isCollapsed && (
+                <h3 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 transition-all duration-300">
+                  {section.section}
+                </h3>
+              )}
               <div className="space-y-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
@@ -101,14 +133,24 @@ const DashboardSidebar = () => {
                     <Link
                       key={item.name}
                       to={item.path}
-                      className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-smooth ${
+                      className={`flex items-center ${isCollapsed ? 'px-2 py-2 justify-center' : 'px-3 py-2'} rounded-lg text-sm font-medium transition-all duration-200 group relative ${
                         isActive(item.path)
                           ? 'bg-primary/20 text-primary border border-primary/30'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                       }`}
+                      title={isCollapsed ? item.name : undefined}
                     >
-                      <Icon className="w-4 h-4 mr-3" />
-                      {item.name}
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      {!isCollapsed && (
+                        <span className="ml-3 transition-all duration-300">{item.name}</span>
+                      )}
+                      
+                      {/* Tooltip for collapsed state */}
+                      {isCollapsed && (
+                        <div className="absolute left-full ml-2 px-2 py-1 bg-background border border-border rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                          {item.name}
+                        </div>
+                      )}
                     </Link>
                   );
                 })}
@@ -120,28 +162,57 @@ const DashboardSidebar = () => {
 
       {/* User Section */}
       <div className="p-4 border-t border-border/20">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 gradient-primary rounded-full flex items-center justify-center">
-            <span className="text-sm font-medium text-primary-foreground">JD</span>
+        {!isCollapsed ? (
+          <>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-medium text-primary-foreground">
+                  {profileLoading ? '...' : getInitials(profileData?.user?.username || 'User')}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {profileLoading ? 'Loading...' : profileData?.user?.username || 'User'}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {profileLoading ? '' : profileData?.user?.email || ''}
+                </p>
+              </div>
+            </div>
+            <Separator className="mb-4" />
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-full justify-start text-muted-foreground hover:text-foreground"
+              onClick={handleLogout}
+            >
+              <LogOut className="w-4 h-4 mr-3" />
+              Sign Out
+            </Button>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 gradient-primary rounded-full flex items-center justify-center">
+              <span className="text-sm font-medium text-primary-foreground">
+                {profileLoading ? '...' : getInitials(profileData?.user?.username || 'User')}
+              </span>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-8 h-8 p-0 text-muted-foreground hover:text-foreground"
+              onClick={handleLogout}
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">John Doe</p>
-            <p className="text-xs text-muted-foreground truncate">john@example.com</p>
-          </div>
-        </div>
-        <Separator className="mb-4" />
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="w-full justify-start text-muted-foreground hover:text-foreground"
-          onClick={handleLogout}
-        >
-          <LogOut className="w-4 h-4 mr-3" />
-          Sign Out
-        </Button>
+        )}
       </div>
     </div>
   );
-};
+});
+
+DashboardSidebar.displayName = 'DashboardSidebar';
 
 export default DashboardSidebar;

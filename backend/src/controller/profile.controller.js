@@ -42,6 +42,10 @@ const getUserProfile = asyncHandler(async (req, res) => {
             id: user._id,
             username: user.username,
             email: user.email,
+            bio: user.bio,
+            company: user.company,
+            location: user.location,
+            website: user.website,
             joinDate: user.createdAt,
             lastActive: user.updatedAt
         },
@@ -58,12 +62,6 @@ const getUserProfile = asyncHandler(async (req, res) => {
             titles: recentActivity[2],
             backgroundRemovals: recentActivity[3],
             total: recentActivity.reduce((sum, count) => sum + count, 0)
-        },
-        limits: {
-            articles: { used: articleCount, total: 100 },
-            images: { used: imageCount, total: 50 },
-            titles: { used: titleCount, total: 200 },
-            backgroundRemovals: { used: bgRemovalCount, total: 30 }
         }
     };
 
