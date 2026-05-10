@@ -14,13 +14,13 @@ const app = express();
 // requests are handled and proper Access-Control-* headers are sent.
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 app.use(cors({
-    origin: [FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173'],
+    origin: [FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://nexa-ai-weld.vercel.app'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
 }));
 
-console.log("🔍 CORS configured for origins:", [FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173']);
+console.log("🔍 CORS configured for origins:", [FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://nexa-ai-weld.vercel.app']);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
