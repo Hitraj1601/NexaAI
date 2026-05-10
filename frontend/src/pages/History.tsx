@@ -500,20 +500,21 @@ const History = () => {
               )}
 
               {!historyData?.history.length ? (
-              <Card className="glass border-border/20">
-                <CardContent className="p-12 text-center">
-                  <HistoryIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No history found</h3>
-                  <p className="text-muted-foreground">
-                    {activeTab === 'all' 
-                      ? "Start generating content to see your history here"
-                      : `No ${activeTab} generations found. Try generating some content first.`
-                    }
-                  </p>
-                </CardContent>
-              </Card>
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <Card className="glass border-border/20">
+                  <CardContent className="p-12 text-center">
+                    <HistoryIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No history found</h3>
+                    <p className="text-muted-foreground">
+                      {activeTab === 'all' 
+                        ? "Start generating content to see your history here"
+                        : `No ${activeTab} generations found. Try generating some content first.`
+                      }
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {historyData.history.map((item) => (
                     <HistoryItem 
                       key={item.id} 
@@ -536,15 +537,15 @@ const History = () => {
                   </div>
                 )}
 
-                {/* Pagination Info */}
-                <div className="mt-4 text-center text-sm text-muted-foreground">
-                  Showing {historyData.history.length} of {historyData.pagination.totalItems} items
-                  {historyData.pagination.totalPages > 1 && (
-                    <span> • Page {historyData.pagination.currentPage} of {historyData.pagination.totalPages}</span>
-                  )}
-                </div>
-              </>
-            )}
+                  {/* Pagination Info */}
+                  <div className="mt-4 text-center text-sm text-muted-foreground">
+                    Showing {historyData.history.length} of {historyData.pagination.totalItems} items
+                    {historyData.pagination.totalPages > 1 && (
+                      <span> • Page {historyData.pagination.currentPage} of {historyData.pagination.totalPages}</span>
+                    )}
+                  </div>
+                </>
+              )}
           </TabsContent>
         </Tabs>
       </div>

@@ -7,7 +7,6 @@ import blogtitleRoute from './src/route/blogtitle.route.js';
 import imageRoute from './src/route/imgae.route.js';
 import removeBGRoute from './src/route/removeBG.route.js';
 import profileRoute from './src/route/profile.route.js';
-import emailService from './src/utils/emailService.js';
 
 const app = express();
 
@@ -22,11 +21,6 @@ app.use(cors({
 }));
 
 console.log("🔍 CORS configured for origins:", [FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173']);
-
-// Initialize email service
-emailService.verifyConnection().catch(error => {
-    console.error('Failed to verify email service:', error);
-});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

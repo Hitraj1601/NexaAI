@@ -6,7 +6,6 @@ import crypto from 'crypto';
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
-import emailService from '../utils/emailService.js';
 
 // -------------------- Helper function --------------------
 const generateToken = (userId) => {
@@ -118,22 +117,10 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
     await user.save({ validateBeforeSave: false });
 
-    try {
-        // Send email
-        await emailService.sendPasswordResetEmail(email, resetToken, user.username);
-        
-        res.status(200).json(new ApiResponse(200, "Password reset email sent successfully", {
-            message: "If this email exists, you will receive a password reset link shortly"
-        }));
-    } catch (error) {
-        // Clear the reset token if email fails
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-        await user.save({ validateBeforeSave: false });
-        
-        console.error("Email sending error:", error);
-        throw new ApiError(500, "Error sending email. Please try again later.");
-    }
+    // Email functionality removed - token generated but not sent
+    res.status(200).json(new ApiResponse(200, "Password reset functionality disabled", {
+        message: "Email functionality has been removed. Please contact support to reset your password."
+    }));
 });
 
 // -------------------- Reset Password --------------------
@@ -169,14 +156,6 @@ export const resetPassword = asyncHandler(async (req, res) => {
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
-
-    // Send confirmation email
-    try {
-        await emailService.sendPasswordResetSuccessEmail(user.email, user.username);
-    } catch (error) {
-        console.error("Error sending confirmation email:", error);
-        // Don't throw error here as password was successfully reset
-    }
 
     res.status(200).json(new ApiResponse(200, "Password reset successful", {
         message: "Your password has been reset successfully. You can now sign in with your new password."

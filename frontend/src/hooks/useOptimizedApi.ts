@@ -1,8 +1,11 @@
 // Custom hook for optimized data fetching with caching and deduplication
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import tokenManager from '@/utils/tokenManager';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// VITE_API_URL is the base server URL (e.g. http://localhost:3000)
+// This hook appends /api internally, so endpoints here start with /user/, /auth/, etc.
+const _BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+const API_BASE_URL = `${_BASE}/api`;
 
 interface CacheEntry {
   data: any;
@@ -18,6 +21,7 @@ interface ApiOptions {
   staleTime?: number; // Stale time in milliseconds (default: 30 seconds)
   retry?: number; // Number of retries
   retryDelay?: number; // Delay between retries in milliseconds
+  signal?: AbortSignal; // AbortController signal
 }
 
 interface ApiResponse<T> {
@@ -94,6 +98,7 @@ export const apiCall = async <T>(endpoint: string, options: ApiOptions = {}): Pr
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
+      ...(options.signal && { signal: options.signal }),
     };
 
     if (options.body) {
@@ -155,27 +160,41 @@ export const apiCall = async <T>(endpoint: string, options: ApiOptions = {}): Pr
 
 // Optimized useApi hook with better caching and stale-while-revalidate pattern
 export const useOptimizedApi = <T>(
-  endpoint: string, 
+  endpoint: string,
   options: ApiOptions = {}
 ): ApiResponse<T> => {
-  const {
-    cacheTime = 5 * 60 * 1000, // 5 minutes
-    staleTime = 30 * 1000 // 30 seconds
-  } = options;
-  
+  const cacheTime = options.cacheTime ?? 5 * 60 * 1000; // 5 minutes
+  const staleTime = options.staleTime ?? 30 * 1000; // 30 seconds
+
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStale, setIsStale] = useState(false);
-  
-  const cacheKey = getCacheKey(endpoint, options);
+
+  // Use a ref for the options object to avoid unstable dependency in useCallback
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  // Stable cache key based on endpoint only (token is captured inside apiCall)
+  const cacheKey = `${endpoint}_${cacheTime}`;
   const abortControllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 
+  // Reset mounted on each render guard
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const invalidateCache = useCallback(() => {
-    cache.delete(cacheKey);
+    // Invalidate all cache entries for this endpoint
+    cache.forEach((_, key) => {
+      if (key.includes(endpoint)) cache.delete(key);
+    });
     setIsStale(true);
-  }, [cacheKey]);
+  }, [endpoint]);
 
   const fetchData = useCallback(async (backgroundUpdate = false) => {
     // Cancel previous request if still pending
@@ -186,24 +205,28 @@ export const useOptimizedApi = <T>(
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    // Build a stable cache key using the token at call time
+    const token = tokenManager.getValidToken();
+    const runtimeCacheKey = `${endpoint}_${cacheTime}_${token || 'anon'}`;
+
     try {
       if (!backgroundUpdate) {
         setLoading(true);
         setError(null);
       }
 
-      // Check for stale cache data first
-      const cachedEntry = cache.get(cacheKey);
+      // Check for cached data first
+      const cachedEntry = cache.get(runtimeCacheKey);
       if (cachedEntry && isCacheValid(cachedEntry)) {
         const isDataStale = isCacheStale(cachedEntry, staleTime);
-        
+
         if (mountedRef.current) {
           setData(cachedEntry.data);
           setIsStale(isDataStale);
           setLoading(false);
         }
 
-        // If data is stale but valid, fetch fresh data in background
+        // If data is stale but still valid, refresh in background
         if (isDataStale && !backgroundUpdate) {
           fetchData(true);
         }
@@ -211,11 +234,9 @@ export const useOptimizedApi = <T>(
       }
 
       const result = await apiCall<T>(endpoint, {
-        ...options,
-        headers: {
-          ...options.headers,
-          'signal': controller.signal
-        }
+        ...optionsRef.current,
+        cacheTime,
+        signal: controller.signal,
       });
 
       if (mountedRef.current && !controller.signal.aborted) {
@@ -234,38 +255,31 @@ export const useOptimizedApi = <T>(
         setLoading(false);
       }
     }
-  }, [endpoint, cacheKey, staleTime, options]);
+  }, [endpoint, cacheTime, staleTime]); // Only primitive deps — no object reference
 
-  // Initial data fetch
+  // Initial data fetch — runs only when endpoint/cacheTime/staleTime change
   useEffect(() => {
     fetchData();
-    
+
     return () => {
-      mountedRef.current = false;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
   }, [fetchData]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  return { 
-    data, 
-    loading, 
-    error, 
+  return {
+    data,
+    loading,
+    error,
     isStale,
-    refetch: () => fetchData(), 
-    invalidateCache 
+    refetch: () => fetchData(),
+    invalidateCache,
   };
 };
 
 // Enhanced hooks with optimizations
+// Endpoints here are relative to /api, e.g. /user/profile → http://host/api/user/profile
 export const useUserProfile = () => {
   return useOptimizedApi<{
     user: {
@@ -293,15 +307,16 @@ export const useUserProfile = () => {
       backgroundRemovals: number;
       total: number;
     };
-  }>('/api/user/profile', {
+  }>('/user/profile', {
     cacheTime: 10 * 60 * 1000, // 10 minutes
     staleTime: 2 * 60 * 1000 // 2 minutes
   });
 };
 
 export const useUserHistory = (type: string = 'all', page: number = 1, limit: number = 10) => {
-  const endpoint = `/api/user/history?type=${type}&page=${page}&limit=${limit}`;
-  
+  // Endpoint relative to API_BASE_URL (which already has /api)
+  const endpoint = `/user/history?type=${type}&page=${page}&limit=${limit}`;
+
   return useOptimizedApi<{
     history: Array<{
       id: string;
@@ -325,7 +340,7 @@ export const useUserHistory = (type: string = 'all', page: number = 1, limit: nu
     };
   }>(endpoint, {
     cacheTime: 3 * 60 * 1000, // 3 minutes
-    staleTime: 30 * 1000 // 30 seconds
+    staleTime: 30 * 1000,     // 30 seconds
   });
 };
 
@@ -339,9 +354,9 @@ export const useDashboardAnalytics = () => {
       bgRemovals: number;
       total: number;
     }>;
-  }>('/api/user/analytics', {
+  }>('/user/analytics', {
     cacheTime: 15 * 60 * 1000, // 15 minutes
-    staleTime: 5 * 60 * 1000 // 5 minutes
+    staleTime: 5 * 60 * 1000,  // 5 minutes
   });
 };
 
@@ -354,35 +369,34 @@ export const updateUserProfile = async (profileData: {
   location?: string;
   website?: string;
 }) => {
-  const result = await apiCall('/api/user/profile', {
+  const result = await apiCall('/user/profile', {
     method: 'PUT',
     body: profileData,
   });
 
-  // Invalidate profile cache
-  const profileCacheKey = getCacheKey('/api/user/profile');
-  cache.delete(profileCacheKey);
+  // Invalidate all profile-related cache entries
+  cache.forEach((_, key) => {
+    if (key.includes('/user/profile')) cache.delete(key);
+  });
 
   return result;
 };
 
 export const deleteHistoryItem = async (type: string, id: string) => {
-  const result = await apiCall(`/api/user/history/${type}/${id}`, {
+  const result = await apiCall(`/user/history/${type}/${id}`, {
     method: 'DELETE',
   });
 
-  // Invalidate history caches
-  cache.forEach((value, key) => {
-    if (key.includes('/api/user/history')) {
+  // Invalidate all related cache entries
+  cache.forEach((_, key) => {
+    if (
+      key.includes('/user/history') ||
+      key.includes('/user/profile') ||
+      key.includes('/user/analytics')
+    ) {
       cache.delete(key);
     }
   });
-
-  // Also invalidate profile and analytics caches as they depend on this data
-  const profileCacheKey = getCacheKey('/api/user/profile');
-  const analyticsCacheKey = getCacheKey('/api/user/analytics');
-  cache.delete(profileCacheKey);
-  cache.delete(analyticsCacheKey);
 
   return result;
 };

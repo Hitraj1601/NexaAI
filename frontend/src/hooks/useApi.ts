@@ -1,44 +1,34 @@
-import { useState, useEffect } from 'react';
+// Re-export optimized API hooks for backward compatibility
+export { 
+  useOptimizedApi as useApi,
+  useUserProfile,
+  useUserHistory,
+  useDashboardAnalytics,
+  updateUserProfile,
+  deleteHistoryItem,
+  apiCall,
+  clearCache,
+  getCacheStats
+} from './useOptimizedApi';
+
+// Keep the original API for any components that might need it
 import tokenManager from '@/utils/tokenManager';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
-interface ApiOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  body?: any;
-  headers?: Record<string, string>;
-}
-
-interface ApiResponse<T> {
-  data: T | null;
-  loading: boolean;
-  error: string | null;
-  refetch: () => Promise<void>;
-}
-
-// Helper function to get auth token
-const getAuthToken = (): string | null => {
-  return tokenManager.getValidToken();
-};
-
-// Helper function to make authenticated API calls
-export const apiCall = async <T>(endpoint: string, options: ApiOptions = {}): Promise<T> => {
-  const token = getAuthToken();
-  
-  console.log("🔍 Frontend - Token from localStorage:", token ? "Present" : "Missing");
-  console.log("🔍 Frontend - Making request to:", `${API_BASE_URL}${endpoint}`);
+// Legacy API call function (deprecated - use optimized version)
+export const legacyApiCall = async <T>(endpoint: string, options: any = {}): Promise<T> => {
+  const token = tokenManager.getValidToken();
   
   const config: RequestInit = {
     method: options.method || 'GET',
-    credentials: 'include', // Include cookies
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
   };
-
-  console.log("🔍 Frontend - Request headers:", config.headers);
 
   if (options.body) {
     config.body = JSON.stringify(options.body);
@@ -49,9 +39,7 @@ export const apiCall = async <T>(endpoint: string, options: ApiOptions = {}): Pr
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: 'Network error' }));
     
-    // Handle token expiration
     if (response.status === 401 && (errorData.message?.includes('expired') || errorData.message?.includes('Invalid token'))) {
-      console.log("🔍 Token expired, redirecting to login");
       tokenManager.logout();
       throw new Error('Session expired. Please log in again.');
     }
@@ -60,126 +48,5 @@ export const apiCall = async <T>(endpoint: string, options: ApiOptions = {}): Pr
   }
 
   const responseData = await response.json();
-  console.log("🔍 Frontend - Response data:", responseData);
-  return responseData.data; // Assuming ApiResponse structure
+  return responseData.data;
 };
-
-// Custom hook for API calls
-export const useApi = <T>(endpoint: string, options: ApiOptions = {}): ApiResponse<T> => {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await apiCall<T>(endpoint, options);
-      setData(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [endpoint]);
-
-  return { data, loading, error, refetch: fetchData };
-};
-
-// Specific hooks for profile and history
-export const useUserProfile = () => {
-  return useApi<{
-    user: {
-      id: string;
-      username: string;
-      email: string;
-      bio?: string;
-      company?: string;
-      location?: string;
-      website?: string;
-      joinDate: string;
-      lastActive: string;
-    };
-    usage: {
-      articles: number;
-      images: number;
-      titles: number;
-      backgroundRemovals: number;
-      total: number;
-    };
-    recentActivity: {
-      articles: number;
-      images: number;
-      titles: number;
-      backgroundRemovals: number;
-      total: number;
-    };
-  }>('/api/user/profile');
-};
-
-export const useUserHistory = (type: string = 'all', page: number = 1, limit: number = 10) => {
-  const endpoint = `/api/user/history?type=${type}&page=${page}&limit=${limit}`;
-  
-  return useApi<{
-    history: Array<{
-      id: string;
-      type: 'article' | 'image' | 'title' | 'bg-removal';
-      title: string;
-      content: string;
-      prompt?: string;
-      originalImage?: string;
-      createdAt: string;
-      user: {
-        username: string;
-      };
-    }>;
-    pagination: {
-      currentPage: number;
-      totalPages: number;
-      totalItems: number;
-      itemsPerPage: number;
-      hasNextPage: boolean;
-      hasPrevPage: boolean;
-    };
-  }>(endpoint);
-};
-
-export const useDashboardAnalytics = () => {
-  return useApi<{
-    dailyActivity: Array<{
-      date: string;
-      articles: number;
-      images: number;
-      titles: number;
-      bgRemovals: number;
-      total: number;
-    }>;
-  }>('/api/user/analytics');
-};
-
-// Functions for mutations
-export const updateUserProfile = async (profileData: {
-  username?: string;
-  email?: string;
-  bio?: string;
-  company?: string;
-  location?: string;
-  website?: string;
-}) => {
-  return apiCall('/api/user/profile', {
-    method: 'PUT',
-    body: profileData,
-  });
-};
-
-export const deleteHistoryItem = async (type: string, id: string) => {
-  return apiCall(`/api/user/history/${type}/${id}`, {
-    method: 'DELETE',
-  });
-};
-
-export default { useApi, useUserProfile, useUserHistory, useDashboardAnalytics };

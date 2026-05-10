@@ -4,8 +4,9 @@ import {
     updateUserProfile, 
     getUserHistory, 
     deleteHistoryItem,
-    getDashboardAnalytics 
-} from '../controller/profile.controller.js';
+    getDashboardAnalytics,
+    clearCache
+} from '../controller/profile.controller.optimized.js';
 import { authenticated } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -20,5 +21,10 @@ router.delete('/history/:type/:id', authenticated, deleteHistoryItem);
 
 // Analytics routes
 router.get('/analytics', authenticated, getDashboardAnalytics);
+
+// Cache management (development only)
+if (process.env.NODE_ENV === 'development') {
+    router.delete('/cache', authenticated, clearCache);
+}
 
 export default router;

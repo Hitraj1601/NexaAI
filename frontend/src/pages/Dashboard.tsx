@@ -19,8 +19,10 @@ import {
 } from 'lucide-react';
 import { useUserProfile, useDashboardAnalytics } from '@/hooks/useOptimizedApi';
 import { DashboardSkeleton } from '@/components/ui/LoadingSkeletons';
+import { usePerformanceTracking } from '@/utils/performanceTracker';
 
 const Dashboard = () => {
+  const { trackApiCall, logMetrics } = usePerformanceTracking('Dashboard');
   const { data: profileData, loading: profileLoading, error: profileError, isStale: profileStale, refetch: refetchProfile, invalidateCache: invalidateProfileCache } = useUserProfile();
   const { data: analyticsData, loading: analyticsLoading, error: analyticsError, isStale: analyticsStale, refetch: refetchAnalytics, invalidateCache: invalidateAnalyticsCache } = useDashboardAnalytics();
 
@@ -110,6 +112,10 @@ const Dashboard = () => {
                   Stale Data
                 </Badge>
               )}
+              <Button onClick={logMetrics} variant="ghost" size="sm">
+                <Zap className="w-4 h-4 mr-2" />
+                Performance
+              </Button>
               <Button onClick={handleRefresh} variant="outline" disabled={profileLoading || analyticsLoading}>
                 <RefreshCw className={`w-4 h-4 mr-2 ${(profileLoading || analyticsLoading) ? 'animate-spin' : ''}`} />
                 {(profileLoading || analyticsLoading) ? 'Refreshing...' : 'Refresh'}

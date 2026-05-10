@@ -6,6 +6,7 @@ import Article from '../model/article.model.js';
 import GenImg from '../model/image.model.js';
 import Blogtitle from '../model/blogtitle.model.js';
 import RemoveBG from '../model/removeBG.model.js';
+import mongoose from 'mongoose';
 
 // Cache for frequently accessed data
 const cache = new Map();
@@ -25,91 +26,39 @@ const getCachedOrExecute = async (key, fn, duration = CACHE_DURATION) => {
 
 // Get user profile with usage statistics (optimized)
 const getUserProfile = asyncHandler(async (req, res) => {
-    const userId = req.user.id;
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const userIdStr = req.user.id;
 
-    const user = await User.findById(userId).select('-password').lean();
+    const user = await User.findById(userIdStr).select('-password').lean();
     if (!user) {
         throw new ApiError(404, 'User not found');
     }
 
     // Use aggregation pipeline for better performance
-    const cacheKey = `profile_${userId}`;
+    const cacheKey = `profile_${userIdStr}`;
     
     const profileData = await getCachedOrExecute(cacheKey, async () => {
-        // Single aggregation to get all counts efficiently
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const statsPipeline = (recentCutoff) => [
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    recent: {
+                        $sum: {
+                            $cond: [{ $gte: ['$createdAt', recentCutoff] }, 1, 0]
+                        }
+                    }
+                }
+            }
+        ];
+
+        // Single aggregation per collection, all in parallel
         const [articleStats, imageStats, titleStats, bgStats] = await Promise.all([
-            Article.aggregate([
-                { $match: { user: userId } },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: 1 },
-                        recent: {
-                            $sum: {
-                                $cond: [
-                                    { $gte: ['$createdAt', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)] },
-                                    1,
-                                    0
-                                ]
-                            }
-                        }
-                    }
-                }
-            ]),
-            GenImg.aggregate([
-                { $match: { user: userId } },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: 1 },
-                        recent: {
-                            $sum: {
-                                $cond: [
-                                    { $gte: ['$createdAt', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)] },
-                                    1,
-                                    0
-                                ]
-                            }
-                        }
-                    }
-                }
-            ]),
-            Blogtitle.aggregate([
-                { $match: { user: userId } },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: 1 },
-                        recent: {
-                            $sum: {
-                                $cond: [
-                                    { $gte: ['$createdAt', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)] },
-                                    1,
-                                    0
-                                ]
-                            }
-                        }
-                    }
-                }
-            ]),
-            RemoveBG.aggregate([
-                { $match: { user: userId } },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: 1 },
-                        recent: {
-                            $sum: {
-                                $cond: [
-                                    { $gte: ['$createdAt', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)] },
-                                    1,
-                                    0
-                                ]
-                            }
-                        }
-                    }
-                }
-            ])
+            Article.aggregate([{ $match: { user: userId } }, ...statsPipeline(thirtyDaysAgo)]),
+            GenImg.aggregate([{ $match: { user: userId } }, ...statsPipeline(thirtyDaysAgo)]),
+            Blogtitle.aggregate([{ $match: { user: userId } }, ...statsPipeline(thirtyDaysAgo)]),
+            RemoveBG.aggregate([{ $match: { user: userId } }, ...statsPipeline(thirtyDaysAgo)])
         ]);
 
         const getStatsValue = (stats, field) => (stats[0] ? stats[0][field] : 0);
@@ -153,7 +102,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
         };
     }, 2 * 60 * 1000); // Cache for 2 minutes
 
-    console.log("🔍 Backend - Sending profile data:", JSON.stringify(profileData, null, 2));
+    console.log("🔍 Backend - Sending profile data for user:", userIdStr);
     
     // Set cache headers for better client-side caching
     res.set('Cache-Control', 'private, max-age=120'); // 2 minutes browser cache
@@ -196,12 +145,13 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     // Clear cache
     cache.delete(`profile_${userId}`);
     
-    res.status(200).json(new ApiResponse(200, updatedUser, 'Profile updated successfully'));
+    res.status(200).json(new ApiResponse(200, 'Profile updated successfully', updatedUser));
 });
 
 // Get user generation history (optimized with proper pagination)
 const getUserHistory = asyncHandler(async (req, res) => {
     const userId = req.user.id;
+    const userIdObj = new mongoose.Types.ObjectId(userId);
     const { type, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
     const pageNum = parseInt(page);
@@ -212,7 +162,7 @@ const getUserHistory = asyncHandler(async (req, res) => {
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     // Build match pipeline for aggregation
-    const matchPipeline = { user: userId };
+    const matchPipeline = { user: userIdObj };
     const projectPipeline = {
         _id: 1,
         user: 1,
@@ -225,96 +175,12 @@ const getUserHistory = asyncHandler(async (req, res) => {
 
     if (!type || type === 'all') {
         // Use faceted search for better performance when fetching all types
-        const aggregationPipeline = [
-            {
-                $facet: {
-                    articles: [
-                        { $match: { user: userId } },
-                        {
-                            $project: {
-                                ...projectPipeline,
-                                title: 1,
-                                content: 1,
-                                prompt: 1,
-                                type: { $literal: 'article' }
-                            }
-                        }
-                    ],
-                    images: [
-                        { $match: { user: userId } },
-                        {
-                            $project: {
-                                ...projectPipeline,
-                                genImgUrl: 1,
-                                userPrompt: 1,
-                                type: { $literal: 'image' },
-                                title: { $literal: 'Generated Image' },
-                                content: '$genImgUrl',
-                                prompt: '$userPrompt'
-                            }
-                        }
-                    ],
-                    titles: [
-                        { $match: { user: userId } },
-                        {
-                            $project: {
-                                ...projectPipeline,
-                                title: 1,
-                                userContent: 1,
-                                type: { $literal: 'title' },
-                                content: '$userContent',
-                                prompt: '$userContent'
-                            }
-                        }
-                    ],
-                    bgRemovals: [
-                        { $match: { user: userId } },
-                        {
-                            $project: {
-                                ...projectPipeline,
-                                resImgURL: 1,
-                                userImgURL: 1,
-                                type: { $literal: 'bg-removal' },
-                                title: { $literal: 'Background Removed' },
-                                content: '$resImgURL',
-                                originalImage: '$userImgURL'
-                            }
-                        }
-                    ]
-                }
-            }
-        ];
-
-        const [facetResults] = await Promise.all([
-            // Run faceted aggregation on Article collection as base
-            Article.aggregate(aggregationPipeline),
-            // Get total counts in parallel
-            Promise.all([
-                Article.countDocuments({ user: userId }),
-                GenImg.countDocuments({ user: userId }),
-                Blogtitle.countDocuments({ user: userId }),
-                RemoveBG.countDocuments({ user: userId })
-            ])
-        ]);
-
-        // Combine results from all collections
-        const allItems = [];
-        
-        // Add articles
-        facetResults.articles.forEach(item => {
-            allItems.push({
-                id: item._id,
-                type: 'article',
-                title: item.title,
-                content: item.content,
-                prompt: item.prompt,
-                createdAt: item.createdAt,
-                user: { username: req.user.username }
-            });
-        });
-
-        // Fetch and add other types in parallel
-        const [images, titles, bgRemovals] = await Promise.all([
+        // Fetch all types in parallel using userIdObj for aggregation
+        const [articles, images, titles, bgRemovals] = await Promise.all([
+            Article.find({ user: userId })
+                .select('title content prompt createdAt')
+                .sort(sortOptions)
+                .lean(),
             GenImg.find({ user: userId })
                 .select('genImgUrl userPrompt createdAt')
                 .sort(sortOptions)
@@ -329,7 +195,19 @@ const getUserHistory = asyncHandler(async (req, res) => {
                 .lean()
         ]);
 
-        // Add other types
+        const allItems = [];
+        articles.forEach(item => {
+            allItems.push({
+                id: item._id,
+                type: 'article',
+                title: item.title,
+                content: item.content,
+                prompt: item.prompt,
+                createdAt: item.createdAt,
+                user: { username: req.user.username }
+            });
+        });
+
         images.forEach(item => {
             allItems.push({
                 id: item._id,
@@ -499,52 +377,63 @@ const deleteHistoryItem = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, null, 'Item deleted successfully'));
 });
 
-// Get dashboard analytics (optimized)
+// Get dashboard analytics (optimized — 4 parallel aggregations instead of 28 sequential queries)
 const getDashboardAnalytics = asyncHandler(async (req, res) => {
     const userId = req.user.id;
+    const userIdObj = new mongoose.Types.ObjectId(userId);
     
     const cacheKey = `analytics_${userId}`;
     
     const analyticsData = await getCachedOrExecute(cacheKey, async () => {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        sevenDaysAgo.setHours(0, 0, 0, 0);
 
+        // Single aggregation pipeline per collection — groups by UTC date string
+        const dailyPipeline = [
+            { $match: { user: userIdObj, createdAt: { $gte: sevenDaysAgo } } },
+            {
+                $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                    count: { $sum: 1 }
+                }
+            }
+        ];
+
+        // Run all 4 aggregations in parallel — just 4 round-trips total
+        const [articleDays, imageDays, titleDays, bgDays] = await Promise.all([
+            Article.aggregate(dailyPipeline),
+            GenImg.aggregate(dailyPipeline),
+            Blogtitle.aggregate(dailyPipeline),
+            RemoveBG.aggregate(dailyPipeline)
+        ]);
+
+        // Build lookup maps for O(1) access
+        const toMap = (arr) => Object.fromEntries(arr.map(d => [d._id, d.count]));
+        const articleMap = toMap(articleDays);
+        const imageMap   = toMap(imageDays);
+        const titleMap   = toMap(titleDays);
+        const bgMap      = toMap(bgDays);
+
+        // Build the 7-day activity array in JS — no more DB loops
         const dailyActivity = [];
-        
-        // Use aggregation for better performance
         for (let i = 6; i >= 0; i--) {
             const date = new Date();
             date.setDate(date.getDate() - i);
-            const startOfDay = new Date(date.setHours(0, 0, 0, 0));
-            const endOfDay = new Date(date.setHours(23, 59, 59, 999));
+            const dateStr = date.toISOString().split('T')[0];
 
-            // Single aggregation pipeline for all collections
-            const [articleCount, imageCount, titleCount, bgCount] = await Promise.all([
-                Article.countDocuments({ 
-                    user: userId, 
-                    createdAt: { $gte: startOfDay, $lte: endOfDay } 
-                }),
-                GenImg.countDocuments({ 
-                    user: userId, 
-                    createdAt: { $gte: startOfDay, $lte: endOfDay } 
-                }),
-                Blogtitle.countDocuments({ 
-                    user: userId, 
-                    createdAt: { $gte: startOfDay, $lte: endOfDay } 
-                }),
-                RemoveBG.countDocuments({ 
-                    user: userId, 
-                    createdAt: { $gte: startOfDay, $lte: endOfDay } 
-                })
-            ]);
+            const a = articleMap[dateStr] || 0;
+            const im = imageMap[dateStr] || 0;
+            const t = titleMap[dateStr] || 0;
+            const b = bgMap[dateStr] || 0;
 
             dailyActivity.push({
-                date: startOfDay.toISOString().split('T')[0],
-                articles: articleCount,
-                images: imageCount,
-                titles: titleCount,
-                bgRemovals: bgCount,
-                total: articleCount + imageCount + titleCount + bgCount
+                date: dateStr,
+                articles: a,
+                images: im,
+                titles: t,
+                bgRemovals: b,
+                total: a + im + t + b
             });
         }
 
@@ -554,7 +443,7 @@ const getDashboardAnalytics = asyncHandler(async (req, res) => {
     // Set cache headers
     res.set('Cache-Control', 'private, max-age=600'); // 10 minutes browser cache
     
-    res.status(200).json(new ApiResponse(200, analyticsData, 'Analytics fetched successfully'));
+    res.status(200).json(new ApiResponse(200, 'Analytics fetched successfully', analyticsData));
 });
 
 // Clear cache endpoint for development/debugging
