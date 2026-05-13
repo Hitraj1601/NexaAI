@@ -7,6 +7,11 @@ connectDB();
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+// Only listen if not running on Vercel (Vercel uses Serverless Functions)
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+    });
+}
+
+export default app;
